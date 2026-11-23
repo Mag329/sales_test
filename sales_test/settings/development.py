@@ -1,0 +1,11 @@
+from .base import *
+
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+ALLOWED_HOSTS = ['*']
+
+ENABLE_SWAGGER = True
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True

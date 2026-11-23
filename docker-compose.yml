@@ -1,0 +1,96 @@
+services:
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+    container_name: w051_web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - DJANGO_ENV=production
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+      - logs_volume:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - current_network
+    command: >
+      sh -c "python manage.py collectstatic --noinput &&
+             python manage.py migrate --noinput &&
+             gunicorn w051.wsgi:application --bind=0.0.0.0:8000 --workers 2 --threads 2"
+
+  db:
+    image: postgres:17
+    container_name: w051_sales_postgres
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${PG_PORT}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data/pgdata
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    command: >
+      postgres -c max_connections=1000
+               -c shared_buffers=256MB
+               -c effective_cache_size=768MB
+               -c maintenance_work_mem=64MB
+               -c checkpoint_completion_target=0.7
+               -c wal_buffers=16MB
+               -c default_statistics_target=100
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${PG_USER} -d $${PG_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    # networks:
+      # - app_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: w051_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.production.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_volume:/app/staticfiles:ro
+      - media_volume:/app/media:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      django:
+        condition: service_healthy
+    networks:
+      - current_network
+
+volumes:
+  pgdata:
+  static_volume:
+  media_volume:
+  logs_volume:
+
+networks:
+  current_network:
+    external: true

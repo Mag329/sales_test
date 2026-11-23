@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.vscode
+.env
+media/
+.DS_Store
+*.pyc
+*.log
+.python-version
+migrations/
